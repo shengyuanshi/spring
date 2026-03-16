@@ -304,7 +304,9 @@ Deno.serve(async (req) => {
   }
 
   const url = new URL(req.url)
-  const pathname = url.pathname.replace(/^\/functions\/v1\/custom-flowers/, '')
+  const pathname = url.pathname
+    .replace(/^\/functions\/v1\/custom-flowers/, '')
+    .replace(/^\/custom-flowers/, '') || '/'
 
   if (req.method === 'POST' && pathname === '/jobs') {
     const { imageDataUrl, moonshotApiKey, geminiApiKey } = await req.json()
