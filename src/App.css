@@ -691,17 +691,55 @@ body {
   cursor: wait;
 }
 
-.global-settings-button {
+.global-control-stack {
   position: fixed;
   top: 1.5rem;
   right: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
   z-index: 120;
 }
 
-.global-settings-button.garden-offset {
+.global-control-stack.garden-offset {
   top: auto;
   right: 2rem;
   bottom: 6.5rem;
+}
+
+.global-control-button {
+  min-width: 9.75rem;
+  text-align: center;
+}
+
+.auth-user-card {
+  display: grid;
+  gap: 0.35rem;
+  padding: 1rem 1.1rem;
+  background: var(--cream);
+  border-left: 3px solid var(--accent-gold);
+  color: var(--charcoal);
+}
+
+.auth-user-label {
+  font-size: 0.82rem;
+  letter-spacing: 0.08em;
+  color: var(--warm-gray);
+  text-transform: uppercase;
+}
+
+.auth-feedback {
+  margin-top: 1rem;
+  font-size: 0.95rem;
+  line-height: 1.6;
+}
+
+.auth-feedback-success {
+  color: #3f6b46;
+}
+
+.auth-feedback-error {
+  color: #8b3a3a;
 }
 
 /* Selected Flowers Bar */
@@ -993,9 +1031,20 @@ body {
     height: 75px;
   }
 
-  .global-settings-button.garden-offset {
+  .global-control-stack {
+    top: 1rem;
+    right: 1rem;
+    gap: 0.5rem;
+  }
+
+  .global-control-stack.garden-offset {
     right: 1rem;
     bottom: 7rem;
+  }
+
+  .global-control-button {
+    min-width: 8.5rem;
+    padding: 0.65rem 1rem;
   }
 
   .selected-bar {

@@ -7,6 +7,7 @@ import { useFaceMesh } from './hooks/useFaceMesh';
 import { useMediaPipe } from './hooks/useMediaPipe';
 import { useCustomFlowers } from './hooks/useCustomFlowers';
 import { useApiSettings } from './hooks/useApiSettings';
+import { useSupabaseAuth } from './hooks/useSupabaseAuth';
 import { buildApiUrl } from './lib/api';
 import { buildAssetUrl } from './lib/assets';
 import { TreeFlower, type TreeFlowerRef } from './components/flowers/TreeFlower';
@@ -51,7 +52,14 @@ function App() {
   const [windActive, setWindActive] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [showSettings, setShowSettings] = useState(false);
+  const [showAuthModal, setShowAuthModal] = useState(false);
   const [pendingSettings, setPendingSettings] = useState<FlowerApiSettings>({ moonshotApiKey: '', geminiApiKey: '' });
+  const [authEmail, setAuthEmail] = useState('');
+  const [authCode, setAuthCode] = useState('');
+  const [authStep, setAuthStep] = useState<'email' | 'code'>('email');
+  const [authMessage, setAuthMessage] = useState<string | null>(null);
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [authBusy, setAuthBusy] = useState(false);
   const [generationError, setGenerationError] = useState<string | null>(null);
   const [isGeneratingFlower, setIsGeneratingFlower] = useState(false);
   const [generationStage, setGenerationStage] = useState<string>('idle');
@@ -105,7 +113,9 @@ function App() {
   } = useMediaPipe();
   const { customFlowers, addCustomFlower, removeCustomFlower } = useCustomFlowers();
   const { settings, updateSettings } = useApiSettings();
+  const { hasSupabaseAuthConfig, isLoading: authLoading, user, sendOtp, verifyOtp, signOut } = useSupabaseAuth();
   const allFlowers = useMemo<(Flower | CustomFlowerType)[]>(() => [...customFlowers, ...flowers], [customFlowers]);
+  const authUserLabel = user?.email || '邮箱登录';
 
   useEffect(() => {
     setPendingSettings(settings);
@@ -904,6 +914,78 @@ function App() {
     setCurrentView('garden');
   };
 
+  const openAuthModal = () => {
+    setAuthError(null);
+    setAuthMessage(null);
+    setAuthCode('');
+    setAuthStep(user ? 'code' : 'email');
+    setShowAuthModal(true);
+  };
+
+  const handleSendOtp = async () => {
+    const normalizedEmail = authEmail.trim();
+    if (!normalizedEmail) {
+      setAuthError('请先输入邮箱地址');
+      return;
+    }
+
+    setAuthBusy(true);
+    setAuthError(null);
+    setAuthMessage(null);
+
+    try {
+      await sendOtp(normalizedEmail);
+      setAuthStep('code');
+      setAuthMessage('验证码已经发送到你的邮箱，请查收后输入。');
+    } catch (err) {
+      setAuthError(err instanceof Error ? err.message : '发送验证码失败');
+    } finally {
+      setAuthBusy(false);
+    }
+  };
+
+  const handleVerifyOtp = async () => {
+    const normalizedEmail = authEmail.trim();
+    const normalizedCode = authCode.trim();
+
+    if (!normalizedEmail || !normalizedCode) {
+      setAuthError('请填写邮箱和验证码');
+      return;
+    }
+
+    setAuthBusy(true);
+    setAuthError(null);
+    setAuthMessage(null);
+
+    try {
+      await verifyOtp(normalizedEmail, normalizedCode);
+      setAuthMessage('登录成功，花园之后就可以接账号同步。');
+      setShowAuthModal(false);
+    } catch (err) {
+      setAuthError(err instanceof Error ? err.message : '验证码校验失败');
+    } finally {
+      setAuthBusy(false);
+    }
+  };
+
+  const handleSignOut = async () => {
+    setAuthBusy(true);
+    setAuthError(null);
+    setAuthMessage(null);
+
+    try {
+      await signOut();
+      setShowAuthModal(false);
+      setAuthStep('email');
+      setAuthCode('');
+      setAuthMessage('已退出登录');
+    } catch (err) {
+      setAuthError(err instanceof Error ? err.message : '退出登录失败');
+    } finally {
+      setAuthBusy(false);
+    }
+  };
+
   return (
     <div
       className="app"
@@ -915,13 +997,22 @@ function App() {
     >
       {/* Grain Overlay */}
       <div className="grain-overlay" />
-      <button
-        type="button"
-        className={`control-button global-settings-button ${currentView === 'garden' ? 'garden-offset' : ''}`}
-        onClick={() => setShowSettings(true)}
-      >
-        API 设置
-      </button>
+      <div className={`global-control-stack ${currentView === 'garden' ? 'garden-offset' : ''}`}>
+        <button
+          type="button"
+          className="control-button global-control-button"
+          onClick={openAuthModal}
+        >
+          {authLoading ? '登录中...' : authUserLabel}
+        </button>
+        <button
+          type="button"
+          className="control-button global-control-button"
+          onClick={() => setShowSettings(true)}
+        >
+          API 设置
+        </button>
+      </div>
 
       <input
         ref={uploadInputRef}
@@ -1339,6 +1430,110 @@ function App() {
                   取消
                 </button>
               </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {showAuthModal && (
+        <>
+          <div className="overlay" onClick={() => setShowAuthModal(false)} />
+          <div className="flower-detail" style={{ maxWidth: '620px', gridTemplateColumns: '1fr' }}>
+            <button className="flower-detail-close" onClick={() => setShowAuthModal(false)}>
+              ×
+            </button>
+            <div className="flower-detail-content">
+              <h3 className="flower-detail-name">邮箱登录</h3>
+              <p className="flower-detail-description">
+                先接入 Supabase Auth 的邮箱验证码登录。登录完成后，下一步就可以把花园状态接到账号级同步。
+              </p>
+              {!hasSupabaseAuthConfig && (
+                <p style={{ marginBottom: '1rem', color: '#8B3A3A' }}>
+                  当前没有可用的 Supabase Auth 配置。
+                </p>
+              )}
+              {user ? (
+                <div style={{ display: 'grid', gap: '1rem' }}>
+                  <div className="auth-user-card">
+                    <span className="auth-user-label">当前账号</span>
+                    <strong>{user.email}</strong>
+                  </div>
+                  <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+                    <button className="hero-button" onClick={handleSignOut} disabled={authBusy}>
+                      {authBusy ? '处理中...' : '退出登录'}
+                    </button>
+                    <button
+                      className="hero-button"
+                      onClick={() => setShowAuthModal(false)}
+                      style={{ background: '#B8B2AC', color: '#2D2D2D' }}
+                    >
+                      关闭
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div style={{ display: 'grid', gap: '1rem' }}>
+                    <label style={{ display: 'grid', gap: '0.4rem' }}>
+                      <span>邮箱地址</span>
+                      <input
+                        type="email"
+                        value={authEmail}
+                        onChange={(event) => setAuthEmail(event.target.value)}
+                        placeholder="you@example.com"
+                        style={{ padding: '0.85rem 1rem', border: '1px solid rgba(0,0,0,0.12)', fontSize: '0.95rem' }}
+                      />
+                    </label>
+                    {authStep === 'code' && (
+                      <label style={{ display: 'grid', gap: '0.4rem' }}>
+                        <span>邮箱验证码</span>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          value={authCode}
+                          onChange={(event) => setAuthCode(event.target.value)}
+                          placeholder="输入邮件里的验证码"
+                          style={{ padding: '0.85rem 1rem', border: '1px solid rgba(0,0,0,0.12)', fontSize: '0.95rem' }}
+                        />
+                      </label>
+                    )}
+                  </div>
+                  {authMessage && (
+                    <p className="auth-feedback auth-feedback-success">{authMessage}</p>
+                  )}
+                  {authError && (
+                    <p className="auth-feedback auth-feedback-error">{authError}</p>
+                  )}
+                  <div style={{ display: 'flex', gap: '1rem', marginTop: '1.5rem', flexWrap: 'wrap' }}>
+                    {authStep === 'email' ? (
+                      <button className="hero-button" onClick={handleSendOtp} disabled={authBusy || !hasSupabaseAuthConfig}>
+                        {authBusy ? '发送中...' : '发送验证码'}
+                      </button>
+                    ) : (
+                      <>
+                        <button className="hero-button" onClick={handleVerifyOtp} disabled={authBusy || !hasSupabaseAuthConfig}>
+                          {authBusy ? '验证中...' : '确认登录'}
+                        </button>
+                        <button
+                          className="hero-button"
+                          onClick={handleSendOtp}
+                          disabled={authBusy || !hasSupabaseAuthConfig}
+                          style={{ background: '#D9D1C6', color: '#2D2D2D' }}
+                        >
+                          重新发送
+                        </button>
+                      </>
+                    )}
+                    <button
+                      className="hero-button"
+                      onClick={() => setShowAuthModal(false)}
+                      style={{ background: '#B8B2AC', color: '#2D2D2D' }}
+                    >
+                      取消
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </>
