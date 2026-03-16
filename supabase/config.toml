@@ -1,0 +1,4 @@
+project_id = "spring-garden"
+
+[functions.custom-flowers]
+verify_jwt = false
