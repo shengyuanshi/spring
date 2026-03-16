@@ -42,10 +42,13 @@ export const useSupabaseAuth = () => {
   }, []);
 
   const sendOtp = async (email: string) => {
+    const emailRedirectTo = new URL(import.meta.env.BASE_URL || '/', window.location.origin).toString();
+
     const { error } = await supabase.auth.signInWithOtp({
       email,
       options: {
         shouldCreateUser: true,
+        emailRedirectTo,
       },
     });
 
