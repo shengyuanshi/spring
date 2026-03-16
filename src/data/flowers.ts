@@ -1,3 +1,4 @@
+import { buildAssetUrl } from '../lib/assets';
 import type { Flower } from '../types/flowers';
 
 export const flowers: Flower[] = [
@@ -5,7 +6,7 @@ export const flowers: Flower[] = [
     id: "baihuashanbitao",
     name: "白花山碧桃",
     englishName: "White Mountain Peach",
-    image: "/flowers/baihuashanbitao.jpg",
+    image: buildAssetUrl('flowers/baihuashanbitao.jpg'),
     description: "山桃和桃的天然杂交品种，未经人工干预自然形成。",
     features: [
       "树形高大开展，气势壮观",
@@ -24,7 +25,7 @@ export const flowers: Flower[] = [
     id: "zidingxiang",
     name: "紫丁香",
     englishName: "Lilac",
-    image: "/flowers/zidingxiang.jpg",
+    image: buildAssetUrl('flowers/zidingxiang.jpg'),
     description: "北京最常见的丁香品种，开花时香气浓郁，北方人司空见惯，南方人值得观赏。",
     features: [
       "紫色花簇密集排列",
@@ -43,7 +44,7 @@ export const flowers: Flower[] = [
     id: "baidingxiang",
     name: "白丁香",
     englishName: "White Lilac",
-    image: "/flowers/baidingxiang.jpg",
+    image: buildAssetUrl('flowers/baidingxiang.jpg'),
     description: "紫丁香的白色变种，属于同一种植物，开花同样香气四溢。",
     features: [
       "纯白花朵清新雅致",
@@ -62,7 +63,7 @@ export const flowers: Flower[] = [
     id: "huadingxiang",
     name: "华丁香",
     englishName: "Chinese Lilac",
-    image: "/flowers/huadingxiang.jpg",
+    image: buildAssetUrl('flowers/huadingxiang.jpg'),
     description: "与普通丁香不同，叶片呈开裂状，形态独特。",
     features: [
       "叶片开裂，形态独特",
@@ -81,7 +82,7 @@ export const flowers: Flower[] = [
     id: "landingxiang",
     name: "蓝丁香",
     englishName: "Blue Lilac",
-    image: "/flowers/landingxiang.jpg",
+    image: buildAssetUrl('flowers/landingxiang.jpg'),
     description: "株型特别矮小，叶子也特别小，非常可爱。",
     features: [
       "株型矮小紧凑",
@@ -100,7 +101,7 @@ export const flowers: Flower[] = [
     id: "zhugecai",
     name: "诸葛菜",
     englishName: "Orychophragmus",
-    image: "/flowers/zhugecai.jpg",
+    image: buildAssetUrl('flowers/zhugecai.jpg'),
     description: "远看是一片紫色花海，近看有多种花色，甚至存在自然变异的个体。",
     features: [
       "远看紫色花海壮观",
@@ -117,7 +118,7 @@ export const flowers: Flower[] = [
     id: "fudicai",
     name: "腹地菜",
     englishName: "Forget-me-not relative",
-    image: "/flowers/fudicai.jpg",
+    image: buildAssetUrl('flowers/fudicai.jpg'),
     description: "北方特别常见的小花，细看特别像著名的勿忘我。",
     features: [
       "花朵极小但精致",
@@ -134,7 +135,7 @@ export const flowers: Flower[] = [
     id: "ziyeli",
     name: "紫叶李",
     englishName: "Purple Leaf Plum",
-    image: "/flowers/ziyeli.jpg",
+    image: buildAssetUrl('flowers/ziyeli.jpg'),
     description: "常被误认为樱花，叶片紫红色，开完花后会结紫色小果。",
     features: [
       "叶片紫红色，夏季变深",
@@ -153,7 +154,7 @@ export const flowers: Flower[] = [
     id: "yuyemei",
     name: "重瓣榆叶梅",
     englishName: "Double-flowering Plum",
-    image: "/flowers/yuyemei.jpg",
+    image: buildAssetUrl('flowers/yuyemei.jpg'),
     description: "常被误认为桃花，叶片形状和榆树叶一样，叶脉深陷。",
     features: [
       "粉色重瓣花朵艳丽",
@@ -172,7 +173,7 @@ export const flowers: Flower[] = [
     id: "chouli",
     name: "稠李",
     englishName: "Bird Cherry",
-    image: "/flowers/chouli.jpg",
+    image: buildAssetUrl('flowers/chouli.jpg'),
     description: "在北方种植较多，因为很耐寒，但花和叶都比较普通。",
     features: [
       "白色小花串状排列",

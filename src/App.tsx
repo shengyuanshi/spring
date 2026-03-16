@@ -8,6 +8,7 @@ import { useMediaPipe } from './hooks/useMediaPipe';
 import { useCustomFlowers } from './hooks/useCustomFlowers';
 import { useApiSettings } from './hooks/useApiSettings';
 import { buildApiUrl } from './lib/api';
+import { buildAssetUrl } from './lib/assets';
 import { TreeFlower, type TreeFlowerRef } from './components/flowers/TreeFlower';
 import { GroundFlower, type GroundFlowerRef } from './components/flowers/GroundFlower';
 import { CustomFlower, type CustomFlowerRef } from './components/flowers/CustomFlower';
@@ -38,6 +39,8 @@ interface SavedGardenState {
 const GARDEN_STATE_STORAGE_KEY = 'spring.garden-state';
 
 function App() {
+  const heroImageUrl = buildAssetUrl('hero-bg.jpg');
+  const polaroidBgUrl = buildAssetUrl('polaroid-monet-bg.png');
   const [currentView, setCurrentView] = useState<'hero' | 'selector' | 'garden'>('hero');
   const [selectedFlowers, setSelectedFlowers] = useState<string[]>([]);
   const [activeFlower, setActiveFlower] = useState<string | null>(null);
@@ -902,7 +905,14 @@ function App() {
   };
 
   return (
-    <div className="app">
+    <div
+      className="app"
+      style={
+        {
+          '--polaroid-bg-url': `url("${polaroidBgUrl}")`,
+        } as React.CSSProperties
+      }
+    >
       {/* Grain Overlay */}
       <div className="grain-overlay" />
       <button
@@ -939,7 +949,7 @@ function App() {
 
         <div className="hero-main">
           <div className="hero-background">
-            <img src="/hero-bg.jpg" alt="Spring Garden" />
+            <img src={heroImageUrl} alt="Spring Garden" />
             <div className="hero-overlay" />
           </div>
 

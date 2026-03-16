@@ -521,7 +521,7 @@ body {
 .garden-section.capture-mode {
   background:
     linear-gradient(rgba(246, 240, 230, 0.08), rgba(246, 240, 230, 0.08)),
-    url('/polaroid-monet-bg.png') center / cover no-repeat;
+    var(--polaroid-bg-url) center / cover no-repeat;
 }
 
 .capture-monet-backdrop {
@@ -530,7 +530,7 @@ body {
   z-index: 0;
   background:
     linear-gradient(rgba(246, 240, 230, 0.08), rgba(246, 240, 230, 0.08)),
-    url('/polaroid-monet-bg.png') center / cover no-repeat;
+    var(--polaroid-bg-url) center / cover no-repeat;
 }
 
 .capture-frame {
