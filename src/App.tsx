@@ -442,6 +442,7 @@ function App() {
   const loadImage = useCallback((src: string) => {
     return new Promise<HTMLImageElement>((resolve, reject) => {
       const image = new Image();
+      image.crossOrigin = 'anonymous';
       image.onload = () => resolve(image);
       image.onerror = () => reject(new Error(`Failed to load image: ${src}`));
       image.src = src;
@@ -508,8 +509,10 @@ function App() {
     photoWidth: number,
     photoHeight: number,
   ) => {
-    const scaleX = photoWidth / Math.max(sourceWidth, 1);
-    const scaleY = photoHeight / Math.max(sourceHeight, 1);
+    const sceneScale = Math.min(
+      photoWidth / Math.max(sourceWidth, 1),
+      photoHeight / Math.max(sourceHeight, 1),
+    );
 
     for (const planted of plantedFlowers) {
       const image = await renderPlantImage(planted);
@@ -520,25 +523,32 @@ function App() {
 
       let baseWidth = 80 * planted.scale;
       let baseHeight = 100 * planted.scale;
-      let anchorX = 40 * planted.scale;
-      let anchorY = 100 * planted.scale;
+      let anchorXRatio = 0.5;
+      let anchorYRatio = 1;
 
       if (flower && 'source' in flower && flower.source === 'custom') {
         baseWidth = 100 * planted.scale;
         baseHeight = 120 * planted.scale;
-        anchorX = 50 * planted.scale;
-        anchorY = 110 * planted.scale;
+        anchorXRatio = 0.5;
+        anchorYRatio = 110 / 120;
       } else if (planted.growthType === 'ground') {
         baseWidth = 40 * planted.scale;
         baseHeight = 55 * planted.scale;
-        anchorX = 20 * planted.scale;
-        anchorY = 55 * planted.scale;
+        anchorXRatio = 0.5;
+        anchorYRatio = 1;
       }
 
-      const destWidth = baseWidth * scaleX;
-      const destHeight = baseHeight * scaleY;
-      const destX = photoX + (position.x - sourceX) * scaleX - anchorX * scaleX;
-      const destY = photoY + (position.y - sourceY) * scaleY - anchorY * scaleY;
+      const targetBoxWidth = baseWidth * sceneScale;
+      const targetBoxHeight = baseHeight * sceneScale;
+      const fitScale = Math.min(
+        targetBoxWidth / Math.max(image.width, 1),
+        targetBoxHeight / Math.max(image.height, 1),
+      );
+
+      const destWidth = image.width * fitScale;
+      const destHeight = image.height * fitScale;
+      const destX = photoX + (position.x - sourceX) * sceneScale - destWidth * anchorXRatio;
+      const destY = photoY + (position.y - sourceY) * sceneScale - destHeight * anchorYRatio;
 
       if (destX + destWidth < photoX || destX > photoX + photoWidth || destY + destHeight < photoY || destY > photoY + photoHeight) {
         continue;
@@ -731,6 +741,7 @@ function App() {
 
       frameCtx.drawImage(video, 0, 0, frameCanvas.width, frameCanvas.height);
       const frameDataUrl = frameCanvas.toDataURL('image/png');
+      const backgroundImage = await loadImage(polaroidBgUrl);
 
       const renderedPlantBounds = getRenderedPlantBounds();
 
@@ -760,6 +771,7 @@ function App() {
 
           const monetBackdrop = clonedDocument.createElement('div');
           monetBackdrop.className = 'capture-monet-backdrop';
+          monetBackdrop.style.backgroundImage = `linear-gradient(rgba(246, 240, 230, 0.08), rgba(246, 240, 230, 0.08)), url("${polaroidBgUrl}")`;
           clonedSection.prepend(monetBackdrop);
 
           const videoElement = clonedSection.querySelector('.camera-video-bg');
@@ -796,6 +808,7 @@ function App() {
 
       ctx.fillStyle = 'rgba(47, 38, 28, 0.12)';
       ctx.fillRect(photoX + 22, photoY + 28, photoWidth, photoHeight);
+      ctx.drawImage(backgroundImage, photoX, photoY, photoWidth, photoHeight);
 
       const targetAspect = photoWidth / photoHeight;
       const sourceAspect = snapshotCanvas.width / snapshotCanvas.height;
@@ -885,7 +898,7 @@ function App() {
     } finally {
       setIsCapturingGarden(false);
     }
-  }, [drawRenderedPlantsToCanvas, getRenderedPlantBounds, videoRef]);
+  }, [drawRenderedPlantsToCanvas, getRenderedPlantBounds, loadImage, polaroidBgUrl, videoRef]);
 
   const generationStageLabel = useMemo(() => {
     switch (generationStage) {
