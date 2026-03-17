@@ -42,6 +42,7 @@ const GARDEN_STATE_STORAGE_KEY = 'spring.garden-state';
 function App() {
   const heroImageUrl = buildAssetUrl('hero-bg.jpg');
   const polaroidBgUrl = buildAssetUrl('polaroid-monet-bg.png');
+  const bgmUrl = new URL('../夏日入侵企画_勇气_伴奏.mp3', import.meta.url).href;
   const [currentView, setCurrentView] = useState<'hero' | 'selector' | 'garden'>('hero');
   const [selectedFlowers, setSelectedFlowers] = useState<string[]>([]);
   const [activeFlower, setActiveFlower] = useState<string | null>(null);
@@ -67,6 +68,7 @@ function App() {
   const [isCapturingGarden, setIsCapturingGarden] = useState(false);
   const [polaroidPreview, setPolaroidPreview] = useState<string | null>(null);
   const [gardenSize, setGardenSize] = useState({ width: 0, height: 0 });
+  const [isMusicPlaying, setIsMusicPlaying] = useState(false);
   
   const gardenSectionRef = useRef<HTMLElement>(null);
   const gardenRef = useRef<HTMLDivElement>(null);
@@ -75,6 +77,7 @@ function App() {
   const streamRef = useRef<MediaStream | null>(null);
   const uploadInputRef = useRef<HTMLInputElement>(null);
   const captureInputRef = useRef<HTMLInputElement>(null);
+  const audioRef = useRef<HTMLAudioElement>(null);
   const PLANT_COOLDOWN = 800;
   const showDebug = false;
 
@@ -927,6 +930,24 @@ function App() {
     setCurrentView('garden');
   };
 
+  const toggleMusic = useCallback(async () => {
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    if (audio.paused) {
+      try {
+        await audio.play();
+        setIsMusicPlaying(true);
+      } catch (playError) {
+        console.error('Failed to play background music:', playError);
+      }
+      return;
+    }
+
+    audio.pause();
+    setIsMusicPlaying(false);
+  }, []);
+
   const openAuthModal = () => {
     setAuthError(null);
     setAuthMessage(null);
@@ -1010,6 +1031,14 @@ function App() {
     >
       {/* Grain Overlay */}
       <div className="grain-overlay" />
+      <audio
+        ref={audioRef}
+        src={bgmUrl}
+        loop
+        preload="auto"
+        onPlay={() => setIsMusicPlaying(true)}
+        onPause={() => setIsMusicPlaying(false)}
+      />
       <div className={`global-control-stack ${currentView === 'garden' ? 'garden-offset' : ''}`}>
         <button
           type="button"
@@ -1026,6 +1055,15 @@ function App() {
           API 设置
         </button>
       </div>
+      <button
+        type="button"
+        className={`music-toggle ${isMusicPlaying ? 'playing' : ''}`}
+        onClick={() => void toggleMusic()}
+        aria-label={isMusicPlaying ? '关闭背景音乐' : '播放背景音乐'}
+        title={isMusicPlaying ? '关闭背景音乐' : '播放背景音乐'}
+      >
+        <span className="music-toggle-icon">♪</span>
+      </button>
 
       <input
         ref={uploadInputRef}
