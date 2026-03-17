@@ -84,6 +84,21 @@ function App() {
   const sleep = (ms: number) => new Promise<void>((resolve) => {
     window.setTimeout(resolve, ms);
   });
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    audio.volume = 0.9;
+    void audio.play()
+      .then(() => {
+        setIsMusicPlaying(true);
+      })
+      .catch((playError) => {
+        console.info('Autoplay was blocked by the browser:', playError);
+        setIsMusicPlaying(false);
+      });
+  }, []);
   
   const {
     videoRef,
