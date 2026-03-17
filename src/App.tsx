@@ -43,6 +43,8 @@ function App() {
   const heroImageUrl = buildAssetUrl('hero-bg.jpg');
   const polaroidBgUrl = buildAssetUrl('polaroid-monet-bg.png');
   const bgmUrl = new URL('../夏日入侵企画_勇气_伴奏.mp3', import.meta.url).href;
+  const windAudioUrl = new URL('../wind.mp3', import.meta.url).href;
+  const clickAudioUrl = new URL('../click.mp3', import.meta.url).href;
   const [currentView, setCurrentView] = useState<'hero' | 'selector' | 'garden'>('hero');
   const [selectedFlowers, setSelectedFlowers] = useState<string[]>([]);
   const [activeFlower, setActiveFlower] = useState<string | null>(null);
@@ -78,6 +80,8 @@ function App() {
   const uploadInputRef = useRef<HTMLInputElement>(null);
   const captureInputRef = useRef<HTMLInputElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
+  const windAudioRef = useRef<HTMLAudioElement>(null);
+  const clickAudioRef = useRef<HTMLAudioElement>(null);
   const PLANT_COOLDOWN = 800;
   const showDebug = false;
 
@@ -98,6 +102,20 @@ function App() {
         console.info('Autoplay was blocked by the browser:', playError);
         setIsMusicPlaying(false);
       });
+  }, []);
+
+  const playClickSound = useCallback(() => {
+    const audio = clickAudioRef.current;
+    if (!audio) return;
+
+    try {
+      audio.currentTime = 0;
+      void audio.play().catch((playError) => {
+        console.info('Click sound could not be played:', playError);
+      });
+    } catch (playError) {
+      console.info('Click sound failed:', playError);
+    }
   }, []);
   
   const {
@@ -345,6 +363,21 @@ function App() {
     }
   }, [currentView, isBlowingShape, mouthOpenness, mouthRoundness]);
 
+  useEffect(() => {
+    const windAudio = windAudioRef.current;
+    if (!windAudio) return;
+
+    if (isBlowingShape && currentView === 'garden') {
+      void windAudio.play().catch((playError) => {
+        console.info('Wind sound could not be played:', playError);
+      });
+      return;
+    }
+
+    windAudio.pause();
+    windAudio.currentTime = 0;
+  }, [currentView, isBlowingShape]);
+
   // Plant cooldown effect
   useEffect(() => {
     if (!canPlant) {
@@ -404,7 +437,8 @@ function App() {
     };
     
     setPlantedFlowers(prev => [...prev, newPlant]);
-  }, [activeFlower, getFlowerById]);
+    playClickSound();
+  }, [activeFlower, getFlowerById, playClickSound]);
 
   const handleGardenClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!activeFlower) return;
@@ -1038,6 +1072,11 @@ function App() {
   return (
     <div
       className="app"
+      onClickCapture={(event) => {
+        if ((event.target as HTMLElement).closest('button')) {
+          playClickSound();
+        }
+      }}
       style={
         {
           '--polaroid-bg-url': `url("${polaroidBgUrl}")`,
@@ -1053,6 +1092,17 @@ function App() {
         preload="auto"
         onPlay={() => setIsMusicPlaying(true)}
         onPause={() => setIsMusicPlaying(false)}
+      />
+      <audio
+        ref={windAudioRef}
+        src={windAudioUrl}
+        preload="auto"
+        loop
+      />
+      <audio
+        ref={clickAudioRef}
+        src={clickAudioUrl}
+        preload="auto"
       />
       <div className={`global-control-stack ${currentView === 'garden' ? 'garden-offset' : ''}`}>
         <button
