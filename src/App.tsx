@@ -643,6 +643,31 @@ function App() {
     });
   }, []);
 
+  const optimizeUploadImageDataUrl = useCallback((dataUrl: string) => {
+    return new Promise<string>((resolve) => {
+      const image = new Image();
+      image.onload = () => {
+        const maxEdge = 1440;
+        const longestEdge = Math.max(image.width, image.height, 1);
+        const scale = Math.min(1, maxEdge / longestEdge);
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.max(1, Math.round(image.width * scale));
+        canvas.height = Math.max(1, Math.round(image.height * scale));
+
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          resolve(dataUrl);
+          return;
+        }
+
+        ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL('image/jpeg', 0.8));
+      };
+      image.onerror = () => resolve(dataUrl);
+      image.src = dataUrl;
+    });
+  }, []);
+
   const generateCustomFlower = useCallback(async (file: File) => {
     if (!settings.moonshotApiKey || !settings.geminiApiKey) {
       setGenerationError('请先在右上角设置中填写 Moonshot 和 Gemini API Key。');
@@ -655,7 +680,8 @@ function App() {
     setGenerationStage('uploading');
 
     try {
-      const imageDataUrl = await readFileAsDataUrl(file);
+      const rawImageDataUrl = await readFileAsDataUrl(file);
+      const imageDataUrl = await optimizeUploadImageDataUrl(rawImageDataUrl);
       const response = await fetch(buildApiUrl('/custom-flowers/jobs'), {
         method: 'POST',
         headers: {
@@ -713,7 +739,7 @@ function App() {
       setIsGeneratingFlower(false);
       setGenerationStage('idle');
     }
-  }, [addCustomFlower, optimizeImageDataUrl, readFileAsDataUrl, settings, sleep]);
+  }, [addCustomFlower, optimizeImageDataUrl, optimizeUploadImageDataUrl, readFileAsDataUrl, settings, sleep]);
 
   const handleFileInput = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
