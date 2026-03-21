@@ -89,6 +89,29 @@ function App() {
     window.setTimeout(resolve, ms);
   });
 
+  const fetchJsonWithRetry = useCallback(async (
+    input: RequestInfo | URL,
+    init: RequestInit | undefined,
+    retries = 2,
+    retryDelay = 1200,
+  ) => {
+    let lastError: unknown = null;
+
+    for (let attempt = 0; attempt <= retries; attempt += 1) {
+      try {
+        const response = await fetch(input, init);
+        const payload = await response.json();
+        return { response, payload };
+      } catch (error) {
+        lastError = error;
+        if (attempt === retries) break;
+        await sleep(retryDelay);
+      }
+    }
+
+    throw lastError instanceof Error ? lastError : new Error('网络请求失败');
+  }, [sleep]);
+
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
@@ -735,7 +758,7 @@ function App() {
     try {
       const rawImageDataUrl = await readFileAsDataUrl(file);
       const imageDataUrl = await optimizeUploadImageDataUrl(rawImageDataUrl);
-      const response = await fetch(buildApiUrl('/custom-flowers/jobs'), {
+      const { response, payload } = await fetchJsonWithRetry(buildApiUrl('/custom-flowers/jobs'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -746,8 +769,6 @@ function App() {
           geminiApiKey: settings.geminiApiKey,
         }),
       });
-
-      const payload = await response.json();
       if (!response.ok) {
         throw new Error(payload.error || '生成自定义花朵失败');
       }
@@ -757,8 +778,12 @@ function App() {
 
       while (!flower) {
         await sleep(1200);
-        const jobResponse = await fetch(buildApiUrl(`/custom-flowers/jobs/${jobId}`));
-        const jobPayload = await jobResponse.json();
+        const { response: jobResponse, payload: jobPayload } = await fetchJsonWithRetry(
+          buildApiUrl(`/custom-flowers/jobs/${jobId}`),
+          undefined,
+          3,
+          1500,
+        );
 
         if (!jobResponse.ok) {
           throw new Error(jobPayload.error || '读取生成任务状态失败');
@@ -787,12 +812,17 @@ function App() {
       setActiveFlower(optimizedFlower.id);
       setShowDetail(optimizedFlower);
     } catch (err) {
-      setGenerationError(err instanceof Error ? err.message : '生成自定义花朵失败');
+      const message = err instanceof Error ? err.message : '生成自定义花朵失败';
+      if (/Failed to fetch|NetworkError|Load failed|网络请求失败/i.test(message)) {
+        setGenerationError('网络波动导致请求中断，请重试一次；如果你是手机拍照上传，建议再等几秒后重试。');
+      } else {
+        setGenerationError(message);
+      }
     } finally {
       setIsGeneratingFlower(false);
       setGenerationStage('idle');
     }
-  }, [addCustomFlower, optimizeImageDataUrl, optimizeUploadImageDataUrl, readFileAsDataUrl, settings, sleep]);
+  }, [addCustomFlower, fetchJsonWithRetry, optimizeImageDataUrl, optimizeUploadImageDataUrl, readFileAsDataUrl, settings, sleep]);
 
   const handleFileInput = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
