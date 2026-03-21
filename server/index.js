@@ -95,6 +95,11 @@ const withRetry = async (factory, retries, label) => {
   throw lastError instanceof Error ? lastError : new Error(`${label} failed`);
 };
 
+const shouldFallbackMoonshotModel = (error) => {
+  if (!(error instanceof Error)) return false;
+  return /Permission denied|resource_not_found_error|Not found the model/i.test(error.message);
+};
+
 const callMoonshot = async ({ apiKey, messages, model = DEFAULT_MOONSHOT_MODEL }) => {
   const response = await fetch('https://api.moonshot.cn/v1/chat/completions', {
     method: 'POST',
@@ -273,9 +278,9 @@ const generateCustomFlower = async ({ imageDataUrl, moonshotApiKey, geminiApiKey
     updateJob(jobId, { stage: 'svg' });
     console.log('[custom-flower] svg:start');
     const svgMarkup = await withRetry(async () => {
-      const svgResponse = await withTimeout(callMoonshot({
+      const runSvgRequest = async (model) => await withTimeout(callMoonshot({
         apiKey: moonshotApiKey,
-        model: DEFAULT_MOONSHOT_SVG_MODEL,
+        model,
         messages: [
           {
             role: 'system',
@@ -286,7 +291,21 @@ const generateCustomFlower = async ({ imageDataUrl, moonshotApiKey, geminiApiKey
             content: svgPrompt,
           },
         ],
-      }), 120000, 'Moonshot svg');
+      }), 120000, `Moonshot svg (${model})`);
+
+      let svgResponse;
+      try {
+        svgResponse = await runSvgRequest(DEFAULT_MOONSHOT_SVG_MODEL);
+      } catch (error) {
+        if (!shouldFallbackMoonshotModel(error) || DEFAULT_MOONSHOT_SVG_MODEL === DEFAULT_MOONSHOT_MODEL) {
+          throw error;
+        }
+
+        console.warn(
+          `[custom-flower] svg model ${DEFAULT_MOONSHOT_SVG_MODEL} unavailable, falling back to ${DEFAULT_MOONSHOT_MODEL}`,
+        );
+        svgResponse = await runSvgRequest(DEFAULT_MOONSHOT_MODEL);
+      }
 
       const sanitized = sanitizeSvg(svgResponse);
       if (!sanitized.includes('<svg') || !sanitized.includes('</svg>')) {
