@@ -10,7 +10,6 @@ const DEFAULT_MOONSHOT_MODEL = Deno.env.get('MOONSHOT_MODEL') || 'kimi-k2.5'
 const DEFAULT_MOONSHOT_VISION_MODEL = Deno.env.get('MOONSHOT_VISION_MODEL') || 'kimi-k2.5'
 const DEFAULT_MOONSHOT_SVG_MODEL = Deno.env.get('MOONSHOT_SVG_MODEL') || 'kimi-k2.5-turbo'
 const DEFAULT_GEMINI_IMAGE_MODEL = Deno.env.get('GEMINI_IMAGE_MODEL') || 'gemini-2.5-flash-image'
-const FALLBACK_GEMINI_IMAGE_MODEL = Deno.env.get('FALLBACK_GEMINI_IMAGE_MODEL') || 'gemini-2.5-flash-image-preview'
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!
 const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || Deno.env.get('SERVICE_ROLE_KEY')!
@@ -173,16 +172,8 @@ const callGeminiImage = async ({ apiKey, prompt }: { apiKey: string; prompt: str
   const primaryImage = extractGeminiImage(primaryPayload)
   if (primaryImage) return primaryImage
 
-  const fallbackPayload = await callGeminiImageModel({
-    apiKey,
-    prompt,
-    model: FALLBACK_GEMINI_IMAGE_MODEL,
-  })
-  const fallbackImage = extractGeminiImage(fallbackPayload)
-  if (fallbackImage) return fallbackImage
-
   throw new Error(
-    `Gemini API did not return image data. Stable payload: ${JSON.stringify(primaryPayload).slice(0, 800)} Fallback payload: ${JSON.stringify(fallbackPayload).slice(0, 800)}`,
+    `Gemini API did not return image data. Payload: ${JSON.stringify(primaryPayload).slice(0, 800)}`,
   )
 }
 

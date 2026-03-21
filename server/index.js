@@ -8,7 +8,6 @@ const DEFAULT_MOONSHOT_MODEL = process.env.MOONSHOT_MODEL || 'kimi-k2.5';
 const DEFAULT_MOONSHOT_VISION_MODEL = process.env.MOONSHOT_VISION_MODEL || 'kimi-k2.5';
 const DEFAULT_MOONSHOT_SVG_MODEL = process.env.MOONSHOT_SVG_MODEL || 'kimi-k2.5-turbo';
 const DEFAULT_GEMINI_IMAGE_MODEL = process.env.GEMINI_IMAGE_MODEL || 'gemini-2.5-flash-image';
-const FALLBACK_GEMINI_IMAGE_MODEL = process.env.FALLBACK_GEMINI_IMAGE_MODEL || 'gemini-2.5-flash-image-preview';
 
 app.use(express.json({ limit: '20mb' }));
 
@@ -176,21 +175,8 @@ const callGeminiImage = async ({ apiKey, prompt }) => {
     return primaryImage;
   }
 
-  console.warn('[custom-flower] Gemini stable model returned text-only response, retrying preview model');
-
-  const fallbackPayload = await callGeminiImageModel({
-    apiKey,
-    prompt,
-    model: FALLBACK_GEMINI_IMAGE_MODEL,
-  });
-
-  const fallbackImage = extractGeminiImage(fallbackPayload);
-  if (fallbackImage) {
-    return fallbackImage;
-  }
-
   throw new Error(
-    `Gemini API did not return image data. Stable payload: ${JSON.stringify(primaryPayload).slice(0, 800)} Fallback payload: ${JSON.stringify(fallbackPayload).slice(0, 800)}`,
+    `Gemini API did not return image data. Payload: ${JSON.stringify(primaryPayload).slice(0, 800)}`,
   );
 };
 
