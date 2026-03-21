@@ -6,6 +6,7 @@ const jobs = new Map();
 
 const DEFAULT_MOONSHOT_MODEL = process.env.MOONSHOT_MODEL || 'kimi-k2.5';
 const DEFAULT_MOONSHOT_VISION_MODEL = process.env.MOONSHOT_VISION_MODEL || 'kimi-k2.5';
+const DEFAULT_MOONSHOT_SVG_MODEL = process.env.MOONSHOT_SVG_MODEL || 'kimi-k2.5-turbo';
 const DEFAULT_GEMINI_IMAGE_MODEL = process.env.GEMINI_IMAGE_MODEL || 'gemini-2.5-flash-image';
 const FALLBACK_GEMINI_IMAGE_MODEL = process.env.FALLBACK_GEMINI_IMAGE_MODEL || 'gemini-2.5-flash-image-preview';
 
@@ -78,6 +79,21 @@ const withTimeout = async (promise, ms, label) => {
   } finally {
     clearTimeout(timeoutId);
   }
+};
+
+const withRetry = async (factory, retries, label) => {
+  let lastError;
+
+  for (let attempt = 0; attempt <= retries; attempt += 1) {
+    try {
+      return await factory(attempt);
+    } catch (error) {
+      lastError = error;
+      console.error(`[custom-flower] ${label} attempt ${attempt + 1} failed`, error);
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error(`${label} failed`);
 };
 
 const callMoonshot = async ({ apiKey, messages, model = DEFAULT_MOONSHOT_MODEL }) => {
@@ -213,26 +229,28 @@ const generateCustomFlower = async ({ imageDataUrl, moonshotApiKey, geminiApiKey
     ].join('\n');
 
     console.log('[custom-flower] identify:start');
-    const identifyResponse = await withTimeout(callMoonshot({
-      apiKey: moonshotApiKey,
-      model: DEFAULT_MOONSHOT_VISION_MODEL,
-      messages: [
-        {
-          role: 'system',
-          content: 'You identify flowers from images and return structured JSON only.',
-        },
-        {
-          role: 'user',
-          content: [
-            { type: 'text', text: identifyPrompt },
-            { type: 'image_url', image_url: { url: imageDataUrl } },
-          ],
-        },
-      ],
-    }), 90000, 'Moonshot identify');
-    console.log('[custom-flower] identify:done');
+    const identified = await withRetry(async () => {
+      const identifyResponse = await withTimeout(callMoonshot({
+        apiKey: moonshotApiKey,
+        model: DEFAULT_MOONSHOT_VISION_MODEL,
+        messages: [
+          {
+            role: 'system',
+            content: 'You identify flowers from images and return structured JSON only.',
+          },
+          {
+            role: 'user',
+            content: [
+              { type: 'text', text: identifyPrompt },
+              { type: 'image_url', image_url: { url: imageDataUrl } },
+            ],
+          },
+        ],
+      }), 120000, 'Moonshot identify');
 
-    const identified = parseJsonResponse(identifyResponse);
+      return parseJsonResponse(identifyResponse);
+    }, 1, 'identify');
+    console.log('[custom-flower] identify:done');
     const flowerId = `${slugify(identified.englishName || identified.name || 'custom-flower')}-${Date.now()}`;
 
     const monetPrompt = [
@@ -268,19 +286,29 @@ const generateCustomFlower = async ({ imageDataUrl, moonshotApiKey, geminiApiKey
 
     updateJob(jobId, { stage: 'svg' });
     console.log('[custom-flower] svg:start');
-    const svgResponse = await withTimeout(callMoonshot({
-      apiKey: moonshotApiKey,
-      messages: [
-        {
-          role: 'system',
-          content: 'Return only valid SVG markup.',
-        },
-        {
-          role: 'user',
-          content: svgPrompt,
-        },
-      ],
-    }), 180000, 'Moonshot svg');
+    const svgMarkup = await withRetry(async () => {
+      const svgResponse = await withTimeout(callMoonshot({
+        apiKey: moonshotApiKey,
+        model: DEFAULT_MOONSHOT_SVG_MODEL,
+        messages: [
+          {
+            role: 'system',
+            content: 'Return only valid SVG markup.',
+          },
+          {
+            role: 'user',
+            content: svgPrompt,
+          },
+        ],
+      }), 120000, 'Moonshot svg');
+
+      const sanitized = sanitizeSvg(svgResponse);
+      if (!sanitized.includes('<svg') || !sanitized.includes('</svg>')) {
+        throw new Error('Moonshot svg returned invalid markup.');
+      }
+
+      return sanitized;
+    }, 1, 'svg');
     console.log('[custom-flower] svg:done');
 
     updateJob(jobId, { stage: 'packaging' });
@@ -293,7 +321,7 @@ const generateCustomFlower = async ({ imageDataUrl, moonshotApiKey, geminiApiKey
       image: generatedImage,
       originalImage: imageDataUrl,
       generatedImage,
-      svgMarkup: sanitizeSvg(svgResponse),
+      svgMarkup,
       description: identified.description,
       features: Array.isArray(identified.features) ? identified.features.slice(0, 4) : [],
       color: identified.color || '#E8D9C8',

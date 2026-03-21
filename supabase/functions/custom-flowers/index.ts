@@ -8,6 +8,7 @@ const corsHeaders = {
 
 const DEFAULT_MOONSHOT_MODEL = Deno.env.get('MOONSHOT_MODEL') || 'kimi-k2.5'
 const DEFAULT_MOONSHOT_VISION_MODEL = Deno.env.get('MOONSHOT_VISION_MODEL') || 'kimi-k2.5'
+const DEFAULT_MOONSHOT_SVG_MODEL = Deno.env.get('MOONSHOT_SVG_MODEL') || 'kimi-k2.5-turbo'
 const DEFAULT_GEMINI_IMAGE_MODEL = Deno.env.get('GEMINI_IMAGE_MODEL') || 'gemini-2.5-flash-image'
 const FALLBACK_GEMINI_IMAGE_MODEL = Deno.env.get('FALLBACK_GEMINI_IMAGE_MODEL') || 'gemini-2.5-flash-image-preview'
 
@@ -67,6 +68,25 @@ const withTimeout = async <T>(promise: Promise<T>, ms: number, label: string): P
   } finally {
     if (timeoutId) clearTimeout(timeoutId)
   }
+}
+
+const withRetry = async <T>(
+  factory: (attempt: number) => Promise<T>,
+  retries: number,
+  label: string,
+) => {
+  let lastError: unknown = null
+
+  for (let attempt = 0; attempt <= retries; attempt += 1) {
+    try {
+      return await factory(attempt)
+    } catch (error) {
+      lastError = error
+      console.error(`[custom-flowers] ${label} attempt ${attempt + 1} failed`, error)
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error(`${label} failed`)
 }
 
 const callMoonshot = async ({
@@ -205,26 +225,32 @@ const generateCustomFlower = async ({
     '7. svgPrompt 用中文描述该花朵的 SVG 视觉特征，强调花瓣、花蕊、枝叶、姿态与种植时的观感。',
   ].join('\n')
 
-  const identifyResponse = await withTimeout(
-    callMoonshot({
-      apiKey: moonshotApiKey,
-      model: DEFAULT_MOONSHOT_VISION_MODEL,
-      messages: [
-        { role: 'system', content: 'You identify flowers from images and return structured JSON only.' },
-        {
-          role: 'user',
-          content: [
-            { type: 'text', text: identifyPrompt },
-            { type: 'image_url', image_url: { url: imageDataUrl } },
+  const identified = await withRetry(
+    async () => {
+      const identifyResponse = await withTimeout(
+        callMoonshot({
+          apiKey: moonshotApiKey,
+          model: DEFAULT_MOONSHOT_VISION_MODEL,
+          messages: [
+            { role: 'system', content: 'You identify flowers from images and return structured JSON only.' },
+            {
+              role: 'user',
+              content: [
+                { type: 'text', text: identifyPrompt },
+                { type: 'image_url', image_url: { url: imageDataUrl } },
+              ],
+            },
           ],
-        },
-      ],
-    }),
-    90000,
-    'Moonshot identify',
-  )
+        }),
+        120000,
+        'Moonshot identify',
+      )
 
-  const identified = parseJsonResponse(identifyResponse)
+      return parseJsonResponse(identifyResponse)
+    },
+    1,
+    'identify',
+  )
   const flowerId = `${slugify(identified.englishName || identified.name || 'custom-flower')}-${Date.now()}`
 
   const monetPrompt = [
@@ -258,16 +284,30 @@ const generateCustomFlower = async ({
   ].join('\n')
 
   await updateJob(jobId, { stage: 'svg' })
-  const svgResponse = await withTimeout(
-    callMoonshot({
-      apiKey: moonshotApiKey,
-      messages: [
-        { role: 'system', content: 'Return only valid SVG markup.' },
-        { role: 'user', content: svgPrompt },
-      ],
-    }),
-    180000,
-    'Moonshot svg',
+  const svgMarkup = await withRetry(
+    async () => {
+      const svgResponse = await withTimeout(
+        callMoonshot({
+          apiKey: moonshotApiKey,
+          model: DEFAULT_MOONSHOT_SVG_MODEL,
+          messages: [
+            { role: 'system', content: 'Return only valid SVG markup.' },
+            { role: 'user', content: svgPrompt },
+          ],
+        }),
+        120000,
+        'Moonshot svg',
+      )
+
+      const sanitized = sanitizeSvg(svgResponse)
+      if (!sanitized.includes('<svg') || !sanitized.includes('</svg>')) {
+        throw new Error('Moonshot svg returned invalid markup.')
+      }
+
+      return sanitized
+    },
+    1,
+    'svg',
   )
 
   const flower = {
@@ -278,7 +318,7 @@ const generateCustomFlower = async ({
     image: generatedImage,
     originalImage: imageDataUrl,
     generatedImage,
-    svgMarkup: sanitizeSvg(svgResponse),
+    svgMarkup,
     description: identified.description,
     features: Array.isArray(identified.features) ? identified.features.slice(0, 4) : [],
     color: identified.color || '#E8D9C8',
