@@ -623,11 +623,54 @@ function App() {
     return new Promise<string>((resolve) => {
       const image = new Image();
       image.onload = () => {
+        const trimCanvas = document.createElement('canvas');
+        trimCanvas.width = image.width;
+        trimCanvas.height = image.height;
+        const trimCtx = trimCanvas.getContext('2d');
+
+        if (!trimCtx) {
+          resolve(dataUrl);
+          return;
+        }
+
+        trimCtx.drawImage(image, 0, 0, trimCanvas.width, trimCanvas.height);
+
+        const { data, width, height } = trimCtx.getImageData(0, 0, trimCanvas.width, trimCanvas.height);
+        let minX = width;
+        let minY = height;
+        let maxX = -1;
+        let maxY = -1;
+
+        for (let y = 0; y < height; y += 1) {
+          for (let x = 0; x < width; x += 1) {
+            const offset = (y * width + x) * 4;
+            const r = data[offset];
+            const g = data[offset + 1];
+            const b = data[offset + 2];
+            const a = data[offset + 3];
+
+            const isContentPixel = a > 10 && (r < 245 || g < 245 || b < 245);
+            if (!isContentPixel) continue;
+
+            minX = Math.min(minX, x);
+            minY = Math.min(minY, y);
+            maxX = Math.max(maxX, x);
+            maxY = Math.max(maxY, y);
+          }
+        }
+
+        const hasTrimBounds = maxX >= minX && maxY >= minY;
+        const padding = 24;
+        const cropX = hasTrimBounds ? Math.max(0, minX - padding) : 0;
+        const cropY = hasTrimBounds ? Math.max(0, minY - padding) : 0;
+        const cropWidth = hasTrimBounds ? Math.min(width - cropX, maxX - minX + padding * 2) : width;
+        const cropHeight = hasTrimBounds ? Math.min(height - cropY, maxY - minY + padding * 2) : height;
+
         const maxWidth = 768;
-        const scale = Math.min(1, maxWidth / image.width);
+        const scale = Math.min(1, maxWidth / cropWidth);
         const canvas = document.createElement('canvas');
-        canvas.width = Math.max(1, Math.round(image.width * scale));
-        canvas.height = Math.max(1, Math.round(image.height * scale));
+        canvas.width = Math.max(1, Math.round(cropWidth * scale));
+        canvas.height = Math.max(1, Math.round(cropHeight * scale));
 
         const ctx = canvas.getContext('2d');
         if (!ctx) {
@@ -635,7 +678,17 @@ function App() {
           return;
         }
 
-        ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+        ctx.drawImage(
+          image,
+          cropX,
+          cropY,
+          cropWidth,
+          cropHeight,
+          0,
+          0,
+          canvas.width,
+          canvas.height,
+        );
         resolve(canvas.toDataURL('image/jpeg', 0.82));
       };
       image.onerror = () => resolve(dataUrl);
