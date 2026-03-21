@@ -8,7 +8,6 @@ const corsHeaders = {
 
 const DEFAULT_MOONSHOT_MODEL = Deno.env.get('MOONSHOT_MODEL') || 'kimi-k2.5'
 const DEFAULT_MOONSHOT_VISION_MODEL = Deno.env.get('MOONSHOT_VISION_MODEL') || 'kimi-k2.5'
-const DEFAULT_MOONSHOT_SVG_MODEL = Deno.env.get('MOONSHOT_SVG_MODEL') || 'kimi-k2.5-turbo'
 const DEFAULT_GEMINI_IMAGE_MODEL = Deno.env.get('GEMINI_IMAGE_MODEL') || 'gemini-2.5-flash-image'
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!
@@ -86,11 +85,6 @@ const withRetry = async <T>(
   }
 
   throw lastError instanceof Error ? lastError : new Error(`${label} failed`)
-}
-
-const shouldFallbackMoonshotModel = (error: unknown) => {
-  if (!(error instanceof Error)) return false
-  return /Permission denied|resource_not_found_error|Not found the model/i.test(error.message)
 }
 
 const callMoonshot = async ({
@@ -282,33 +276,18 @@ const generateCustomFlower = async ({
   await updateJob(jobId, { stage: 'svg' })
   const svgMarkup = await withRetry(
     async () => {
-      const runSvgRequest = async (model: string) =>
-        await withTimeout(
-          callMoonshot({
-            apiKey: moonshotApiKey,
-            model,
-            messages: [
-              { role: 'system', content: 'Return only valid SVG markup.' },
-              { role: 'user', content: svgPrompt },
-            ],
-          }),
-          120000,
-          `Moonshot svg (${model})`,
-        )
-
-      let svgResponse: string
-      try {
-        svgResponse = await runSvgRequest(DEFAULT_MOONSHOT_SVG_MODEL)
-      } catch (error) {
-        if (!shouldFallbackMoonshotModel(error) || DEFAULT_MOONSHOT_SVG_MODEL === DEFAULT_MOONSHOT_MODEL) {
-          throw error
-        }
-
-        console.warn(
-          `[custom-flowers] svg model ${DEFAULT_MOONSHOT_SVG_MODEL} unavailable, falling back to ${DEFAULT_MOONSHOT_MODEL}`,
-        )
-        svgResponse = await runSvgRequest(DEFAULT_MOONSHOT_MODEL)
-      }
+      const svgResponse = await withTimeout(
+        callMoonshot({
+          apiKey: moonshotApiKey,
+          model: DEFAULT_MOONSHOT_MODEL,
+          messages: [
+            { role: 'system', content: 'Return only valid SVG markup.' },
+            { role: 'user', content: svgPrompt },
+          ],
+        }),
+        120000,
+        `Moonshot svg (${DEFAULT_MOONSHOT_MODEL})`,
+      )
 
       const sanitized = sanitizeSvg(svgResponse)
       if (!sanitized.includes('<svg') || !sanitized.includes('</svg>')) {

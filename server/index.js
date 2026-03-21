@@ -6,7 +6,6 @@ const jobs = new Map();
 
 const DEFAULT_MOONSHOT_MODEL = process.env.MOONSHOT_MODEL || 'kimi-k2.5';
 const DEFAULT_MOONSHOT_VISION_MODEL = process.env.MOONSHOT_VISION_MODEL || 'kimi-k2.5';
-const DEFAULT_MOONSHOT_SVG_MODEL = process.env.MOONSHOT_SVG_MODEL || 'kimi-k2.5-turbo';
 const DEFAULT_GEMINI_IMAGE_MODEL = process.env.GEMINI_IMAGE_MODEL || 'gemini-2.5-flash-image';
 
 app.use(express.json({ limit: '20mb' }));
@@ -93,11 +92,6 @@ const withRetry = async (factory, retries, label) => {
   }
 
   throw lastError instanceof Error ? lastError : new Error(`${label} failed`);
-};
-
-const shouldFallbackMoonshotModel = (error) => {
-  if (!(error instanceof Error)) return false;
-  return /Permission denied|resource_not_found_error|Not found the model/i.test(error.message);
 };
 
 const callMoonshot = async ({ apiKey, messages, model = DEFAULT_MOONSHOT_MODEL }) => {
@@ -278,9 +272,9 @@ const generateCustomFlower = async ({ imageDataUrl, moonshotApiKey, geminiApiKey
     updateJob(jobId, { stage: 'svg' });
     console.log('[custom-flower] svg:start');
     const svgMarkup = await withRetry(async () => {
-      const runSvgRequest = async (model) => await withTimeout(callMoonshot({
+      const svgResponse = await withTimeout(callMoonshot({
         apiKey: moonshotApiKey,
-        model,
+        model: DEFAULT_MOONSHOT_MODEL,
         messages: [
           {
             role: 'system',
@@ -291,21 +285,7 @@ const generateCustomFlower = async ({ imageDataUrl, moonshotApiKey, geminiApiKey
             content: svgPrompt,
           },
         ],
-      }), 120000, `Moonshot svg (${model})`);
-
-      let svgResponse;
-      try {
-        svgResponse = await runSvgRequest(DEFAULT_MOONSHOT_SVG_MODEL);
-      } catch (error) {
-        if (!shouldFallbackMoonshotModel(error) || DEFAULT_MOONSHOT_SVG_MODEL === DEFAULT_MOONSHOT_MODEL) {
-          throw error;
-        }
-
-        console.warn(
-          `[custom-flower] svg model ${DEFAULT_MOONSHOT_SVG_MODEL} unavailable, falling back to ${DEFAULT_MOONSHOT_MODEL}`,
-        );
-        svgResponse = await runSvgRequest(DEFAULT_MOONSHOT_MODEL);
-      }
+      }), 120000, `Moonshot svg (${DEFAULT_MOONSHOT_MODEL})`);
 
       const sanitized = sanitizeSvg(svgResponse);
       if (!sanitized.includes('<svg') || !sanitized.includes('</svg>')) {
