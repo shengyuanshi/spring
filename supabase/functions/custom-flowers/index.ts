@@ -9,6 +9,7 @@ const corsHeaders = {
 const DEFAULT_MOONSHOT_MODEL = Deno.env.get('MOONSHOT_MODEL') || 'kimi-k2.5'
 const DEFAULT_MOONSHOT_VISION_MODEL = Deno.env.get('MOONSHOT_VISION_MODEL') || 'kimi-k2.5'
 const DEFAULT_GEMINI_IMAGE_MODEL = Deno.env.get('GEMINI_IMAGE_MODEL') || 'gemini-2.5-flash-image'
+const DEFAULT_GEMINI_SVG_MODEL = Deno.env.get('GEMINI_SVG_MODEL') || 'gemini-2.5-flash'
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!
 const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || Deno.env.get('SERVICE_ROLE_KEY')!
@@ -176,6 +177,31 @@ const callGeminiImage = async ({ apiKey, prompt }: { apiKey: string; prompt: str
   )
 }
 
+const extractGeminiText = (payload: any) => {
+  const parts = payload.candidates?.[0]?.content?.parts || []
+  const textPart = parts.find((part: any) => typeof part.text === 'string' && part.text.trim())
+  return textPart?.text?.trim() || null
+}
+
+const callGeminiText = async ({
+  apiKey,
+  prompt,
+  model = DEFAULT_GEMINI_SVG_MODEL,
+}: {
+  apiKey: string
+  prompt: string
+  model?: string
+}) => {
+  const payload = await callGeminiImageModel({ apiKey, prompt, model })
+  const text = extractGeminiText(payload)
+
+  if (!text) {
+    throw new Error(`Gemini text model did not return text. Payload: ${JSON.stringify(payload).slice(0, 800)}`)
+  }
+
+  return text
+}
+
 const updateJob = async (jobId: string, updates: Record<string, unknown>) => {
   const { error } = await admin
     .from('custom_flower_jobs')
@@ -277,16 +303,13 @@ const generateCustomFlower = async ({
   const svgMarkup = await withRetry(
     async () => {
       const svgResponse = await withTimeout(
-        callMoonshot({
-          apiKey: moonshotApiKey,
-          model: DEFAULT_MOONSHOT_MODEL,
-          messages: [
-            { role: 'system', content: 'Return only valid SVG markup.' },
-            { role: 'user', content: svgPrompt },
-          ],
+        callGeminiText({
+          apiKey: geminiApiKey,
+          model: DEFAULT_GEMINI_SVG_MODEL,
+          prompt: `Return only valid SVG markup.\n${svgPrompt}`,
         }),
-        120000,
-        `Moonshot svg (${DEFAULT_MOONSHOT_MODEL})`,
+        60000,
+        `Gemini svg (${DEFAULT_GEMINI_SVG_MODEL})`,
       )
 
       const sanitized = sanitizeSvg(svgResponse)

@@ -7,6 +7,7 @@ const jobs = new Map();
 const DEFAULT_MOONSHOT_MODEL = process.env.MOONSHOT_MODEL || 'kimi-k2.5';
 const DEFAULT_MOONSHOT_VISION_MODEL = process.env.MOONSHOT_VISION_MODEL || 'kimi-k2.5';
 const DEFAULT_GEMINI_IMAGE_MODEL = process.env.GEMINI_IMAGE_MODEL || 'gemini-2.5-flash-image';
+const DEFAULT_GEMINI_SVG_MODEL = process.env.GEMINI_SVG_MODEL || 'gemini-2.5-flash';
 
 app.use(express.json({ limit: '20mb' }));
 
@@ -179,6 +180,23 @@ const callGeminiImage = async ({ apiKey, prompt }) => {
   );
 };
 
+const extractGeminiText = (payload) => {
+  const parts = payload.candidates?.[0]?.content?.parts || [];
+  const textPart = parts.find((part) => typeof part.text === 'string' && part.text.trim());
+  return textPart?.text?.trim() || null;
+};
+
+const callGeminiText = async ({ apiKey, prompt, model = DEFAULT_GEMINI_SVG_MODEL }) => {
+  const payload = await callGeminiImageModel({ apiKey, prompt, model });
+  const text = extractGeminiText(payload);
+
+  if (!text) {
+    throw new Error(`Gemini text model did not return text. Payload: ${JSON.stringify(payload).slice(0, 800)}`);
+  }
+
+  return text;
+};
+
 app.get('/api/health', (_req, res) => {
   res.json({ ok: true });
 });
@@ -272,20 +290,11 @@ const generateCustomFlower = async ({ imageDataUrl, moonshotApiKey, geminiApiKey
     updateJob(jobId, { stage: 'svg' });
     console.log('[custom-flower] svg:start');
     const svgMarkup = await withRetry(async () => {
-      const svgResponse = await withTimeout(callMoonshot({
-        apiKey: moonshotApiKey,
-        model: DEFAULT_MOONSHOT_MODEL,
-        messages: [
-          {
-            role: 'system',
-            content: 'Return only valid SVG markup.',
-          },
-          {
-            role: 'user',
-            content: svgPrompt,
-          },
-        ],
-      }), 120000, `Moonshot svg (${DEFAULT_MOONSHOT_MODEL})`);
+      const svgResponse = await withTimeout(callGeminiText({
+        apiKey: geminiApiKey,
+        model: DEFAULT_GEMINI_SVG_MODEL,
+        prompt: `Return only valid SVG markup.\n${svgPrompt}`,
+      }), 60000, `Gemini svg (${DEFAULT_GEMINI_SVG_MODEL})`);
 
       const sanitized = sanitizeSvg(svgResponse);
       if (!sanitized.includes('<svg') || !sanitized.includes('</svg>')) {
