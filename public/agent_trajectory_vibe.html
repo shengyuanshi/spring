@@ -414,7 +414,8 @@
       }
 
       .counter {
-        min-width: 180px;
+        width: 320px;
+        flex-shrink: 0;
         text-align: right;
         color: var(--muted);
         font-size: 12px;
@@ -705,7 +706,7 @@
             <div class="toolbar">
               <button id="playBtn" class="play-btn" aria-label="Play timeline">▶</button>
               <input id="slider" type="range" min="1" max="36" value="18" />
-              <div id="counter" class="counter"><strong>Node 18 / 36</strong><span>Day 3 · 09:00</span></div>
+              <div id="counter" class="counter"><strong>Node 18 / 36</strong><span>Day 3 · Day 3 training + cluster status update</span></div>
             </div>
           </div>
         </main>
@@ -1081,7 +1082,8 @@
         const event = events.find((item) => item.idx === idx);
         slider.value = idx;
         if (event) {
-          counter.innerHTML = `<strong>Node ${idx} / ${events.length}</strong><span>${event.time} · ${event.title}</span>`;
+          const dayLabel = event.time.split(" · ")[0];
+          counter.innerHTML = `<strong>Node ${idx} / ${events.length}</strong><span>${dayLabel} · ${event.title}</span>`;
         } else {
           counter.innerHTML = `<strong>Node ${idx} / ${events.length}</strong><span>Trajectory event</span>`;
         }
